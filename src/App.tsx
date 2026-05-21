@@ -76,7 +76,37 @@ export default function App() {
 
   const isAutoChinese = useMemo(() => navigator.language.startsWith('zh'), []);
 
-  // Parse location or fallback to default Darklord string
+  const [hasLoadedDeck, setHasLoadedDeck] = useState(false);
+  const [deckCodeInput, setDeckCodeInput] = useState("");
+
+  const parseDeckCode = (input: string) => {
+    let finalCode = input.trim();
+    // Try regex match for d=...
+    const dMatch = finalCode.match(/[?&]d=([^&#]+)/);
+    if (dMatch) {
+      return dMatch[1];
+    }
+    if (finalCode.startsWith("ydke://")) {
+      return finalCode.replace("ydke://", "");
+    }
+    // If it's a URL-like string that somehow missed regex
+    if (finalCode.includes("ygodeckview.barian.moe")) {
+      // usually caught by dMatch above
+    }
+    return finalCode;
+  };
+
+  const submitDeckCode = (input: string) => {
+    const code = parseDeckCode(input);
+    if (code) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("d", code);
+      url.searchParams.set("v", "1");
+      window.location.href = url.toString();
+    }
+  };
+
+  // Parse location or fallback to start screen
   useEffect(() => {
     try {
       const fullUrl = window.location.href;
@@ -96,22 +126,19 @@ export default function App() {
       paramStr = paramStr.split('#')[0];
       const searchParams = new URLSearchParams(paramStr);
 
-      const v = searchParams.get('v');
       const d = searchParams.get('d');
       const paramName = searchParams.get('name');
       
-      let parsedDeck: ParsedDeck = { main: [], extra: [], side: [] };
-
-      // If no valid param is provided, forcefully use the test string
       if (!d) {
-        parsedDeck = decodeYDK(DEFAULT_TEST_STRING);
-        setDeckName(paramName || (isAutoChinese ? "墮天使 (預設測試卡組)" : "Darklord (Default)"));
-      } else {
-        parsedDeck = decodeYDK(d);
-        setDeckName(paramName || (isAutoChinese ? "解析出的卡組" : "Loaded Deck"));
+        setHasLoadedDeck(false);
+        setIsLoading(false);
+        return;
       }
-      
+
+      const parsedDeck = decodeYDK(d);
+      setDeckName(paramName || (isAutoChinese ? "讀取出的卡組" : "Loaded Deck"));
       setDeck(parsedDeck);
+      setHasLoadedDeck(true);
       fetchCardMetaData(parsedDeck);
     } catch (e) {
       console.error(e);
@@ -289,6 +316,116 @@ export default function App() {
 
   const preferChinesePage = pageLangPref === 'zh' || (pageLangPref === 'auto' && isAutoChinese);
 
+  if (!hasLoadedDeck) {
+    return (
+      <div className="h-screen bg-[#0B1017] flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-xl bg-[#10141A] border border-[#3E4F63] rounded shadow-[0_10px_40px_rgba(0,0,0,0.8)] p-6 md:p-8 flex flex-col gap-6 relative z-10 overflow-hidden">
+          {/* Top accent */}
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600"></div>
+
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-100 tracking-wider flex justify-center items-center gap-3">
+              <Book className="w-6 h-6 text-indigo-400" />
+              {preferChinesePage ? 'YGO Deck Viewer' : 'YGO Deck Viewer'}
+            </h1>
+            <p className="text-gray-400 mt-2 text-sm">
+              {preferChinesePage ? '請輸入卡組碼或包含卡組碼的網址' : 'Please enter a deck code or a URL containing a deck code'}
+            </p>
+          </div>
+
+          <form onSubmit={(e) => { e.preventDefault(); submitDeckCode(deckCodeInput); }} className="flex flex-col gap-4">
+            <input 
+               type="text" 
+               className="w-full bg-[#1A222D] border border-[#2A3544] rounded text-gray-200 px-4 py-3 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-mono text-sm"
+               placeholder={preferChinesePage ? "ydke://... 或 https://..." : "ydke://... or https://..."}
+               value={deckCodeInput}
+               onChange={(e) => setDeckCodeInput(e.target.value)}
+               autoFocus
+            />
+            <button 
+               type="submit"
+               disabled={!deckCodeInput.trim()}
+               className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3 rounded shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {preferChinesePage ? '讀取卡組' : 'Load Deck'}
+            </button>
+          </form>
+          
+          <div className="text-center mt-2 flex justify-center">
+             <button onClick={() => setShowSettings(true)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-300 transition-colors">
+               <Settings className="w-4 h-4" /> {preferChinesePage ? '語言設定' : 'Language Setup'}
+             </button>
+          </div>
+        </div>
+        
+        {/* Footer */}
+        <footer className="absolute bottom-4 text-center text-[#718096] text-xs tracking-wide z-10">
+          於頁尾標註 <a href="https://barian.moe" target="_blank" rel="noopener noreferrer" className="text-indigo-400 font-semibold hover:text-indigo-300 transition-colors underline-offset-4 hover:underline">幽影櫻</a> 製作
+        </footer>
+
+        {/* Global Settings Modal for Intro page */}
+        {showSettings && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 text-left">
+            <div className="bg-[#10141A] border border-[#3E4F63] rounded shadow-[0_10px_40px_rgba(0,0,0,0.8)] w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="bg-gradient-to-b from-[#2B3542] to-[#1C232E] border-b border-[#0A0D11] px-4 py-3 flex justify-between items-center text-slate-200">
+                <h2 className="text-lg font-bold text-gray-100 tracking-wide">設定 / Settings</h2>
+                <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 flex flex-col gap-6 text-slate-200">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-2">卡圖語言 Image Language</label>
+                  <div className="flex gap-2 bg-[#1A222D] p-1 rounded border border-[#2A3544]">
+                     {(['auto', 'zh', 'en'] as const).map(v => (
+                       <button 
+                         key={v}
+                         onClick={() => setImgLangPref(v)}
+                         className={`flex-1 py-1.5 text-sm rounded transition-colors ${imgLangPref === v ? 'bg-[#3E4F63] text-white shadow font-semibold' : 'text-gray-400 hover:text-gray-200 hover:bg-[#2C3B4E]'}`}
+                       >
+                         {v === 'auto' ? '自動 Auto' : v === 'zh' ? '中文' : 'English'}
+                       </button>
+                     ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-2">卡片內文 Card Text Language</label>
+                  <div className="flex gap-2 bg-[#1A222D] p-1 rounded border border-[#2A3544]">
+                     {(['auto', 'zh', 'en'] as const).map(v => (
+                       <button 
+                         key={v}
+                         onClick={() => setTextLangPref(v)}
+                         className={`flex-1 py-1.5 text-sm rounded transition-colors ${textLangPref === v ? 'bg-[#3E4F63] text-white shadow font-semibold' : 'text-gray-400 hover:text-gray-200 hover:bg-[#2C3B4E]'}`}
+                       >
+                         {v === 'auto' ? '自動 Auto' : v === 'zh' ? '中文' : 'English'}
+                       </button>
+                     ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-2">頁面介面 Page UI Language</label>
+                  <div className="flex gap-2 bg-[#1A222D] p-1 rounded border border-[#2A3544]">
+                     {(['auto', 'zh', 'en'] as const).map(v => (
+                       <button 
+                         key={v}
+                         onClick={() => setPageLangPref(v)}
+                         className={`flex-1 py-1.5 text-sm rounded transition-colors ${pageLangPref === v ? 'bg-[#3E4F63] text-white shadow font-semibold' : 'text-gray-400 hover:text-gray-200 hover:bg-[#2C3B4E]'}`}
+                       >
+                         {v === 'auto' ? '自動 Auto' : v === 'zh' ? '中文' : 'English'}
+                       </button>
+                     ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen bg-gradient-to-br from-[#0B1017] via-[#0E151F] to-[#0D121B] text-slate-200 font-sans flex flex-col overflow-hidden selection:bg-slate-700">
       <div className="flex-1 w-full max-w-[1400px] mx-auto p-2 md:p-4 flex flex-col md:flex-row gap-4 h-full min-h-0 relative z-10">
@@ -315,15 +452,18 @@ export default function App() {
               <Settings className="w-5 h-5" />
             </button>
             <button onClick={() => {
-              const input = window.prompt(preferChinesePage ? "請輸入 ydke:// 卡組碼" : "Please paste a ydke:// deck code");
-              if (input && input.startsWith("ydke://")) {
-                const url = new URL(window.location.href);
-                url.searchParams.set("d", input);
-                url.searchParams.set("v", "1");
-                url.searchParams.set("name", preferChinesePage ? "載入的卡組" : "Loaded Deck");
-                window.location.href = url.toString();
-              } else if (input) {
-                alert(preferChinesePage ? "無效的卡組碼，請確保以 ydke:// 開頭" : "Invalid deck code, please make sure it starts with ydke://");
+              const input = window.prompt(preferChinesePage ? "請輸入 ydke:// \n或 https:// \n或 deck&v=1&d=... 卡組碼代碼" : "Please paste a ydke:// or deck URL here");
+              if (input) {
+                const parsed = parseDeckCode(input);
+                if (parsed) {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set("d", parsed);
+                  url.searchParams.set("v", "1");
+                  url.searchParams.set("name", preferChinesePage ? "載入的卡組" : "Loaded Deck");
+                  window.location.href = url.toString();
+                } else {
+                  alert(preferChinesePage ? "解析失敗，請確認代碼格式" : "Parsing failed, please check code format");
+                }
               }
             }} className="flex items-center justify-center bg-gradient-to-b from-gray-100 to-gray-300 w-10 h-10 rounded border border-gray-400 hover:brightness-110 active:brightness-95 transition-all text-slate-900 clip-slanted" title={preferChinesePage ? '讀取卡組' : 'Load Deck'}>
               <Edit className="w-5 h-5" />

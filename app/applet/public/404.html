@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Redirecting...</title>
+    <script type="text/javascript">
+      // GitHub Pages SPA redirect logic
+      var path = window.location.pathname;
+      var search = window.location.search;
+      var hash = window.location.hash;
+      
+      // If there are params mistakenly placed in path, redirect to root with '?'
+      if (path.length > 1) {
+          // If search already exists, append path content, else use path.substring(1) as search
+          var newSearch = search ? search + "&" + path.substring(1) : "?" + path.substring(1);
+          window.location.replace('/' + newSearch + hash);
+      } else {
+          window.location.replace('/' + search + hash);
+      }
+    </script>
+  </head>
+  <body>
+  </body>
+</html>
