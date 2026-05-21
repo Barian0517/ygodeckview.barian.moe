@@ -79,7 +79,23 @@ export default function App() {
   // Parse location or fallback to default Darklord string
   useEffect(() => {
     try {
-      const searchParams = new URLSearchParams(window.location.search);
+      const fullUrl = window.location.href;
+      let paramStr = window.location.search.substring(1);
+      
+      // Handle missing '?' in URL (e.g. /ygotype=deck&v=1&d=...)
+      if (!paramStr && fullUrl.includes('&d=')) {
+        paramStr = fullUrl.substring(fullUrl.indexOf('&d=') - 5); // Rough fallback to grab nearby context
+        if (fullUrl.includes('ygotype=')) {
+          paramStr = fullUrl.substring(fullUrl.indexOf('ygotype='));
+        } else if (fullUrl.includes('v=')) {
+          paramStr = fullUrl.substring(fullUrl.indexOf('v='));
+        }
+      }
+
+      // Clean up hash at the tail if any
+      paramStr = paramStr.split('#')[0];
+      const searchParams = new URLSearchParams(paramStr);
+
       const v = searchParams.get('v');
       const d = searchParams.get('d');
       const paramName = searchParams.get('name');
@@ -87,12 +103,12 @@ export default function App() {
       let parsedDeck: ParsedDeck = { main: [], extra: [], side: [] };
 
       // If no valid param is provided, forcefully use the test string
-      if (!d || v !== '1') {
+      if (!d) {
         parsedDeck = decodeYDK(DEFAULT_TEST_STRING);
-        setDeckName(paramName || "墮天使"); // Default test deck name if empty
+        setDeckName(paramName || (isAutoChinese ? "墮天使 (預設測試卡組)" : "Darklord (Default)"));
       } else {
         parsedDeck = decodeYDK(d);
-        setDeckName(paramName || "解析出的卡組");
+        setDeckName(paramName || (isAutoChinese ? "解析出的卡組" : "Loaded Deck"));
       }
       
       setDeck(parsedDeck);
