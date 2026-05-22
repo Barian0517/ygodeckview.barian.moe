@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Book, Edit, Settings, X } from 'lucide-react';
+import { Book, Edit, Settings, X, Share2 } from 'lucide-react';
 import { decodeYDK, ParsedDeck } from './utils/ydkDecoder';
 
 export type LangPref = 'auto' | 'zh' | 'en';
@@ -69,6 +69,8 @@ export default function App() {
     return 'zh';
   });
   const [showSettings, setShowSettings] = useState(false);
+  const [showLoadModal, setShowLoadModal] = useState(false);
+  const [loadModalInput, setLoadModalInput] = useState("");
 
   useEffect(() => { localStorage.setItem('imgLangPref', imgLangPref); }, [imgLangPref]);
   useEffect(() => { localStorage.setItem('textLangPref', textLangPref); }, [textLangPref]);
@@ -78,6 +80,12 @@ export default function App() {
 
   const [hasLoadedDeck, setHasLoadedDeck] = useState(false);
   const [deckCodeInput, setDeckCodeInput] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(""), 3000);
+  };
 
   const parseDeckCode = (input: string) => {
     let finalCode = input.trim();
@@ -452,19 +460,19 @@ export default function App() {
               <Settings className="w-5 h-5" />
             </button>
             <button onClick={() => {
-              const input = window.prompt(preferChinesePage ? "請輸入 ydke:// \n或 https:// \n或 deck&v=1&d=... 卡組碼代碼" : "Please paste a ydke:// or deck URL here");
-              if (input) {
-                const parsed = parseDeckCode(input);
-                if (parsed) {
-                  const url = new URL(window.location.href);
-                  url.searchParams.set("d", parsed);
-                  url.searchParams.set("v", "1");
-                  url.searchParams.set("name", preferChinesePage ? "載入的卡組" : "Loaded Deck");
-                  window.location.href = url.toString();
-                } else {
-                  alert(preferChinesePage ? "解析失敗，請確認代碼格式" : "Parsing failed, please check code format");
-                }
-              }
+              const urlStr = window.location.href;
+              navigator.clipboard.writeText(urlStr).then(() => {
+                showToast(preferChinesePage ? "已複製卡組網址！" : "Copied Deck URL to clipboard!");
+              }).catch(err => {
+                console.error('Failed to copy: ', err);
+                showToast(preferChinesePage ? "複製失敗，請手動複製網址" : "Failed to copy URL. Please copy it manually.");
+              });
+            }} className="flex items-center justify-center bg-gradient-to-b from-gray-100 to-gray-300 w-10 h-10 rounded border border-gray-400 hover:brightness-110 active:brightness-95 transition-all text-slate-900 clip-slanted" title={preferChinesePage ? '分享卡組' : 'Share Deck'}>
+              <Share2 className="w-5 h-5" />
+            </button>
+            <button onClick={() => {
+              setShowLoadModal(true);
+              setLoadModalInput("");
             }} className="flex items-center justify-center bg-gradient-to-b from-gray-100 to-gray-300 w-10 h-10 rounded border border-gray-400 hover:brightness-110 active:brightness-95 transition-all text-slate-900 clip-slanted" title={preferChinesePage ? '讀取卡組' : 'Load Deck'}>
               <Edit className="w-5 h-5" />
             </button>
@@ -576,6 +584,62 @@ export default function App() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Load Modal */}
+      {showLoadModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#10141A] border border-[#3E4F63] rounded shadow-[0_10px_40px_rgba(0,0,0,0.8)] w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-gradient-to-b from-[#2B3542] to-[#1C232E] border-b border-[#0A0D11] px-4 py-3 flex justify-between items-center text-slate-200">
+              <h2 className="text-lg font-bold text-gray-100 tracking-wide">{preferChinesePage ? '讀取卡組' : 'Load Deck'}</h2>
+              <button onClick={() => setShowLoadModal(false)} className="text-gray-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-400 mb-4">
+                {preferChinesePage ? "請輸入 ydke:// \n或 https:// \n或 deck&v=1&d=... 卡組碼代碼" : "Please paste a ydke:// or deck URL here"}
+              </p>
+              <textarea 
+                className="w-full bg-[#1A222D] border border-[#2A3544] rounded text-gray-200 p-3 h-24 resize-none focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-mono text-xs"
+                placeholder={preferChinesePage ? "在此貼上卡組碼..." : "Paste deck code here..."}
+                value={loadModalInput}
+                onChange={(e) => setLoadModalInput(e.target.value)}
+                autoFocus
+              />
+              <button 
+                onClick={() => {
+                  const input = loadModalInput.trim();
+                  if (input) {
+                    const parsed = parseDeckCode(input);
+                    if (parsed) {
+                      const url = new URL(window.location.href);
+                      url.searchParams.set("d", parsed);
+                      url.searchParams.set("v", "1");
+                      url.searchParams.set("name", preferChinesePage ? "載入的卡組" : "Loaded Deck");
+                      window.location.href = url.toString();
+                    } else {
+                      showToast(preferChinesePage ? "解析失敗，請確認代碼格式" : "Parsing failed, please check code format");
+                    }
+                  }
+                }}
+                disabled={!loadModalInput.trim()}
+                className="w-full mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-2.5 rounded shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {preferChinesePage ? '讀取' : 'Load'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300 pointer-events-none">
+          <div className="bg-[#1A222D]/95 backdrop-blur border border-[#3E4F63] shadow-[0_4px_20px_rgba(0,0,0,0.5)] rounded-full px-6 py-3 text-white font-medium text-sm tracking-wide">
+            {toastMessage}
           </div>
         </div>
       )}
